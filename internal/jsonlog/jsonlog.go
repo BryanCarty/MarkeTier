@@ -57,6 +57,7 @@ func (l *Logger) PrintFatal(err error, properties map[string]string) {
 	os.Exit(1)
 }
 
+//prints as JSON to stdout
 func (l *Logger) print(level Level, message string, properties map[string]string) (int, error) {
 	if level < l.minLevel {
 		return 0, nil
@@ -75,7 +76,7 @@ func (l *Logger) print(level Level, message string, properties map[string]string
 		Properties: properties,
 	}
 
-	if level >= LevelError {
+	if level >= LevelError { //i.e LevelFatal
 		aux.Trace = string(debug.Stack())
 	}
 
@@ -89,9 +90,10 @@ func (l *Logger) print(level Level, message string, properties map[string]string
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	return l.out.Write(append(line, '\n'))
+	return l.out.Write(append(line, '\n')) //write to os.Stdout
 }
 
-func (l *Logger) Write(message []byte) (n int, err error) {
-	return l.print(LevelError, string(message), nil)
+//calls our logger(JSON), and also implements io.Writer interface
+func (l *Logger) Write(message []byte) (n int, err error) { //implements interface io.Writer
+	return l.print(LevelError, string(message), nil) //call our custom loggers print.
 }

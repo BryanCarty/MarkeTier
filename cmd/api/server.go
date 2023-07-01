@@ -34,6 +34,10 @@ func (app *application) serve() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
+		// Calling Shutdown() on our server will cause ListenAndServe() to immediately
+		// return a http.ErrServerClosed error. So if we see this error, it is actually a
+		// good thing and an indication that the graceful shutdown has started. So we check
+		// specifically for this, only returning the error if it is NOT http.ErrServerClosed.
 		err := srv.Shutdown(ctx)
 		if err != nil {
 			shutdownError <- err
@@ -52,7 +56,7 @@ func (app *application) serve() error {
 		"env":  app.config.env,
 	})
 
-	err := srv.ListenAndServe()
+	err := srv.ListenAndServe() //is blocking
 	if !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

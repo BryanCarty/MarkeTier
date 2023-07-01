@@ -14,7 +14,7 @@ type Filters struct {
 	SortSafelist []string
 }
 
-func (f Filters) sortColumn() string {
+func (f Filters) sortColumn() string { //return sortcolumn if in safesortlist
 	for _, safeValue := range f.SortSafelist {
 		if f.Sort == safeValue {
 			return strings.TrimPrefix(f.Sort, "-")
