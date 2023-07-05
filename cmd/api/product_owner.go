@@ -90,3 +90,103 @@ func (app *application) registerProductOwnerHandler(w http.ResponseWriter, r *ht
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+func (app *application) showProductOwner(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	productOwner, err := app.models.ProductOwnerModel.GetById(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"user": productOwner}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) updateProductOwnersHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	user, err := app.models.ProductOwnerModel.GetById(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	var input struct {
+		Email       *string `json:"email"`
+		Address     *string `json:"address"`
+		Password    *string `json:"password"`
+		DisplayName *string `json:"display_name"`
+		About       *string `json:"about"`
+	}
+
+	err = app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	if input.Email != nil {
+		user.BaseUserAccount.Email = *input.Email
+	}
+
+	if input.Address != nil {
+		user.BaseUserAccount.Address = *input.Address
+	}
+
+	if input.Password != nil {
+		user.BaseUserAccount.Password.Set(*input.Password)
+	}
+
+	if input.DisplayName != nil {
+		user.DisplayName = *input.DisplayName
+	}
+
+	if input.About != nil {
+		user.About = *input.About
+	}
+
+	v := validator.New()
+
+	if data.ValidateProductOwnerUser(v, user); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	err = app.models.ProductOwnerModel.Update(user)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

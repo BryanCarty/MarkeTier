@@ -115,3 +115,79 @@ func (app *application) showMarketier(w http.ResponseWriter, r *http.Request) {
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+func (app *application) updateMarketiersHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	user, err := app.models.MarketierUserModel.GetById(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	var input struct {
+		Email       *string `json:"email"`
+		Address     *string `json:"address"`
+		Password    *string `json:"password"`
+		DisplayName *string `json:"display_name"`
+		About       *string `json:"about"`
+	}
+
+	err = app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	if input.Email != nil {
+		user.BaseUserAccount.Email = *input.Email
+	}
+
+	if input.Address != nil {
+		user.BaseUserAccount.Address = *input.Address
+	}
+
+	if input.Password != nil {
+		user.BaseUserAccount.Password.Set(*input.Password)
+	}
+
+	if input.DisplayName != nil {
+		user.DisplayName = *input.DisplayName
+	}
+
+	if input.About != nil {
+		user.About = *input.About
+	}
+
+	v := validator.New()
+
+	if data.ValidateMarketierUser(v, user); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	err = app.models.MarketierUserModel.Update(user)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

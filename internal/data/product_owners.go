@@ -270,3 +270,48 @@ func ValidateProductOwnerUser(v *validator.Validator, productOwnerUserAccount *P
 	v.Check(productOwnerUserAccount.SalesGenerated >= 0, "sales_generated", "must be >= 0")
 	v.Check(productOwnerUserAccount.SalesGenerated <= 10_000_000_000, "sales_generated", "must be <= 10,000,000,000")
 }
+
+func (productOwnerUserModel ProductOwnerAccountModel) GetById(id int64) (*ProductOwnerUserAccount, error) {
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `
+	SELECT base_user.user_id, first_name, last_name, email, date_of_birth, gender, address, password, account_creation_time, last_login_time, account_status, version, account_type, display_name, about, sales_generated, tier
+	FROM base_users INNER JOIN product_owners ON base_users.user_id = product_owners.user_id WHERE users.user_id = $1`
+
+	var productOwner ProductOwnerUserAccount
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := productOwnerUserModel.DB.QueryRowContext(ctx, query, id).Scan(
+		&productOwner.BaseUserAccount.UserId,
+		&productOwner.BaseUserAccount.FirstName,
+		&productOwner.BaseUserAccount.LastName,
+		&productOwner.BaseUserAccount.Email,
+		&productOwner.BaseUserAccount.DateOfBirth,
+		&productOwner.BaseUserAccount.Gender,
+		&productOwner.BaseUserAccount.Address,
+		&productOwner.BaseUserAccount.Password.hash,
+		&productOwner.BaseUserAccount.AccountCreationTime,
+		&productOwner.BaseUserAccount.LastLoginTime,
+		&productOwner.BaseUserAccount.AccountStatus,
+		&productOwner.BaseUserAccount.Version,
+		&productOwner.BaseUserAccount.AccountType,
+		&productOwner.DisplayName,
+		&productOwner.About,
+		&productOwner.SalesGenerated,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &productOwner, nil
+}

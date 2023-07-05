@@ -227,3 +227,110 @@ func (app *application) showShopper(w http.ResponseWriter, r *http.Request) {
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+/**
+type BaseUserAccount struct {
+	UserId              int64     `json:"user_id"`
+	FirstName           string    `json:"first_name"`
+	LastName            string    `json:"last_name"`
+	Email               string    `json:"email"`
+	DateOfBirth         time.Time `json:"date_of_birth"`
+	Gender              string    `json:"gender"`
+	Address             string    `json:"address"`
+	Password            password  `json:"-"`
+	AccountCreationTime time.Time `json:"account_creation_time"`
+	LastLoginTime       time.Time `json:"last_login_time"`
+	AccountStatus       string    `json:"account_status"`
+	Version             int64     `json:"version"`
+	AccountType         int8      `json:"account_type"`
+}**/
+
+func (app *application) updateShoppersHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	user, err := app.models.BaseUsersModel.GetById(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	var input struct {
+		Email    *string `json:"email"`
+		Address  *string `json:"address"`
+		Password *string `json:"password"`
+	}
+
+	err = app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	if input.Email != nil {
+		user.Email = *input.Email
+	}
+
+	if input.Address != nil {
+		user.Address = *input.Address
+	}
+
+	if input.Password != nil {
+		user.Password.Set(*input.Password)
+	}
+
+	v := validator.New()
+
+	if data.ValidateBaseUser(v, user); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	err = app.models.BaseUsersModel.Update(user)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) deleteBaseUserHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	err = app.models.BaseUsersModel.Delete(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"message": "user successfully deleted"}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

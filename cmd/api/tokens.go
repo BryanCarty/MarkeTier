@@ -59,6 +59,19 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		return
 	}
 
+	//update last login time
+	*user.LastLoginTime = time.Now()
+	err = app.models.BaseUsersModel.Update(user)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
 	err = app.writeJSON(w, http.StatusCreated, envelope{"authentication_token": token}, nil) //user receives authentication token to place in the request header.
 	if err != nil {
 		app.serverErrorResponse(w, r, err)

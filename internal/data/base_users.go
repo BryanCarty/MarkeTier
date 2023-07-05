@@ -168,23 +168,6 @@ func (m BaseUserAccountModel) GetByEmail(email string) (*BaseUserAccount, error)
 	return &baseUser, nil
 }
 
-/**
-type BaseUserAccount struct {
-	UserId              int64     `json:"user_id"`
-	FirstName           string    `json:"first_name"`
-	LastName            string    `json:"last_name"`
-	Email               string    `json:"email"`
-	DateOfBirth         time.Time `json:"date_of_birth"`
-	Gender              string    `json:"gender"`
-	Address             string    `json:"address"`
-	Password            password  `json:"-"`
-	AccountCreationTime time.Time `json:"account_creation_time"`
-	LastLoginTime       time.Time `json:"last_login_time"`
-	AccountStatus       string    `json:"account_status"`
-	Version             int64     `json:"version"`
-	AccountType         int8      `json:"account_type"`
-}**/
-
 func (m BaseUserAccountModel) Update(baseUser *BaseUserAccount) error {
 	query := `
         UPDATE base_users
@@ -308,4 +291,33 @@ func (baseUserAccountModel BaseUserAccountModel) GetById(id int64) (*BaseUserAcc
 	}
 
 	return &baseUser, nil
+}
+
+func (baseUserAccountModel BaseUserAccountModel) Delete(id int64) error {
+	if id < 1 {
+		return ErrRecordNotFound
+	}
+
+	query := `
+        DELETE FROM base_users
+        WHERE id = $1`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	result, err := baseUserAccountModel.DB.ExecContext(ctx, query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+
+	return nil
 }
