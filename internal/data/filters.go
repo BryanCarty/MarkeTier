@@ -4,7 +4,7 @@ import (
 	"math"
 	"strings"
 
-	"greenlight.alexedwards.net/internal/validator"
+	"marketier/internal/validator"
 )
 
 type Filters struct {

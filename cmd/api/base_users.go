@@ -2,18 +2,21 @@ package main
 
 import (
 	"errors"
+	"marketier/internal/data"
+	"marketier/internal/validator"
 	"net/http"
 	"time"
-
-	"greenlight.alexedwards.net/internal/data"
-	"greenlight.alexedwards.net/internal/validator"
 )
 
-func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) registerBaseUserHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Name     string `json:"name"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		FirstName   string    `json:"first_name"`
+		LastName    string    `json:"last_name"`
+		Email       string    `json:"email"`
+		DateOfBirth time.Time `json:"date_of_birth"`
+		Gender      string    `json:"gender"`
+		Address     string    `json:"address"`
+		Password    string    `json:"password"`
 	}
 
 	err := app.readJSON(w, r, &input)
@@ -22,10 +25,14 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	user := &data.User{
-		Name:      input.Name,
-		Email:     input.Email,
-		Activated: false,
+	user := &data.BaseUserAccount{
+		FirstName:   input.FirstName,
+		LastName:    input.LastName,
+		Email:       input.Email,
+		DateOfBirth: input.DateOfBirth,
+		Gender:      input.Gender,
+		Address:     input.Address,
+		AccountType: 1,
 	}
 
 	err = user.Password.Set(input.Password)
@@ -36,12 +43,12 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 
 	v := validator.New()
 
-	if data.ValidateUser(v, user); !v.Valid() {
+	if data.ValidateBaseUser(v, user); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	err = app.models.Users.Insert(user)
+	err = app.models.BaseUsersModel.Insert(user)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrDuplicateEmail):
@@ -53,13 +60,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err = app.models.Permissions.AddForUser(user.ID, "movies:read")
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	token, err := app.models.Tokens.New(user.ID, 3*24*time.Hour, data.ScopeActivation)
+	token, err := app.models.Tokens.New(user.UserId, 3*24*time.Hour, data.ScopeActivation)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -68,7 +69,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	app.background(func() {
 		data := map[string]interface{}{
 			"activationToken": token.Plaintext,
-			"userID":          user.ID,
+			"userID":          user.UserId,
 		}
 
 		err = app.mailer.Send(user.Email, "user_welcome.tmpl", data)
@@ -83,7 +84,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) activateBaseUserHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		TokenPlaintext string `json:"token"`
 	}
@@ -101,7 +102,7 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	user, err := app.models.Users.GetForToken(data.ScopeActivation, input.TokenPlaintext)
+	user, err := app.models.BaseUsersModel.GetForToken(data.ScopeActivation, input.TokenPlaintext)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -113,9 +114,9 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	user.Activated = true
+	user.AccountStatus = "ACTIVATED"
 
-	err = app.models.Users.Update(user)
+	err = app.models.BaseUsersModel.Update(user)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrEditConflict):
@@ -126,7 +127,7 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err = app.models.Tokens.DeleteAllForUser(data.ScopeActivation, user.ID)
+	err = app.models.Tokens.DeleteAllForUser(data.ScopeActivation, user.UserId)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -138,7 +139,7 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) updateBaseUserPasswordHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Password       string `json:"password"`
 		TokenPlaintext string `json:"token"`
@@ -160,7 +161,7 @@ func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http
 		return
 	}
 
-	user, err := app.models.Users.GetForToken(data.ScopePasswordReset, input.TokenPlaintext)
+	user, err := app.models.BaseUsersModel.GetForToken(data.ScopePasswordReset, input.TokenPlaintext)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -178,7 +179,7 @@ func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http
 		return
 	}
 
-	err = app.models.Users.Update(user)
+	err = app.models.BaseUsersModel.Update(user)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrEditConflict):
@@ -189,7 +190,7 @@ func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http
 		return
 	}
 
-	err = app.models.Tokens.DeleteAllForUser(data.ScopePasswordReset, user.ID)
+	err = app.models.Tokens.DeleteAllForUser(data.ScopePasswordReset, user.UserId)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -198,6 +199,30 @@ func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http
 	env := envelope{"message": "your password was successfully reset"}
 
 	err = app.writeJSON(w, http.StatusOK, env, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) showShopper(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	shopper, err := app.models.BaseUsersModel.GetById(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"user": shopper}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"greenlight.alexedwards.net/internal/data"
-	"greenlight.alexedwards.net/internal/validator"
+	"marketier/internal/data"
+	"marketier/internal/validator"
 
 	"github.com/felixge/httpsnoop"
 	"github.com/tomasen/realip"
@@ -92,7 +92,7 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 		authorizationHeader := r.Header.Get("Authorization")
 
 		if authorizationHeader == "" {
-			r = app.contextSetUser(r, data.AnonymousUser)
+			r = app.contextSetUser(r, data.AnonymousUserAccount)
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -112,7 +112,7 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		user, err := app.models.Users.GetForToken(data.ScopeAuthentication, token)
+		user, err := app.models.BaseUsersModel.GetForToken(data.ScopeAuthentication, token)
 		if err != nil {
 			switch {
 			case errors.Is(err, data.ErrRecordNotFound):
@@ -146,7 +146,7 @@ func (app *application) requireActivatedUser(next http.HandlerFunc) http.Handler
 	fn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := app.contextGetUser(r)
 
-		if !user.Activated {
+		if user.AccountStatus != "ACTIVATED" {
 			app.inactiveAccountResponse(w, r)
 			return
 		}
@@ -157,22 +157,31 @@ func (app *application) requireActivatedUser(next http.HandlerFunc) http.Handler
 	return app.requireAuthenticatedUser(fn)
 }
 
-func (app *application) requirePermission(code string, next http.HandlerFunc) http.HandlerFunc {
+// ACcount type of 0 means only self can access
+func (app *application) requirePermission(account_types []int8, next http.HandlerFunc) http.HandlerFunc {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		user := app.contextGetUser(r)
-
-		permissions, err := app.models.Permissions.GetAllForUser(user.ID)
-		if err != nil {
-			app.serverErrorResponse(w, r, err)
-			return
+		if account_types[0] == 0 {
+			id, err := app.readIDParam(r)
+			if err != nil {
+				app.notFoundResponse(w, r)
+				return
+			}
+			if id == user.UserId {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+		for _, value := range account_types {
+			if value == user.AccountType {
+				next.ServeHTTP(w, r)
+				return
+			}
 		}
 
-		if !permissions.Include(code) {
-			app.notPermittedResponse(w, r)
-			return
-		}
+		app.notPermittedResponse(w, r)
+		return
 
-		next.ServeHTTP(w, r)
 	}
 
 	return app.requireActivatedUser(fn)

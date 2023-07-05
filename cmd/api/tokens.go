@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"greenlight.alexedwards.net/internal/data"
-	"greenlight.alexedwards.net/internal/validator"
+	"marketier/internal/data"
+	"marketier/internal/validator"
 )
 
 func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +31,7 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		return
 	}
 
-	user, err := app.models.Users.GetByEmail(input.Email)
+	user, err := app.models.BaseUsersModel.GetByEmail(input.Email)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -53,7 +53,7 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		return
 	}
 
-	token, err := app.models.Tokens.New(user.ID, 24*time.Hour, data.ScopeAuthentication) //new token times out in 24 hours.
+	token, err := app.models.Tokens.New(user.UserId, 24*time.Hour, data.ScopeAuthentication) //new token times out in 24 hours.
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -83,7 +83,7 @@ func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r
 		return
 	}
 
-	user, err := app.models.Users.GetByEmail(input.Email)
+	user, err := app.models.BaseUsersModel.GetByEmail(input.Email)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -95,13 +95,13 @@ func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r
 		return
 	}
 
-	if !user.Activated {
+	if user.AccountStatus != "ACTIVATED" {
 		v.AddError("email", "user account must be activated")
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	token, err := app.models.Tokens.New(user.ID, 45*time.Minute, data.ScopePasswordReset)
+	token, err := app.models.Tokens.New(user.UserId, 45*time.Minute, data.ScopePasswordReset)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -144,7 +144,7 @@ func (app *application) createActivationTokenHandler(w http.ResponseWriter, r *h
 		return
 	}
 
-	user, err := app.models.Users.GetByEmail(input.Email)
+	user, err := app.models.BaseUsersModel.GetByEmail(input.Email)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -156,13 +156,13 @@ func (app *application) createActivationTokenHandler(w http.ResponseWriter, r *h
 		return
 	}
 
-	if user.Activated {
+	if user.AccountStatus == "ACTIVATED" {
 		v.AddError("email", "user has already been activated")
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	token, err := app.models.Tokens.New(user.ID, 3*24*time.Hour, data.ScopeActivation)
+	token, err := app.models.Tokens.New(user.UserId, 3*24*time.Hour, data.ScopeActivation)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return

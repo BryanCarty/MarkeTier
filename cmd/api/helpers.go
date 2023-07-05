@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"greenlight.alexedwards.net/internal/validator"
+	"marketier/internal/validator"
 
 	"github.com/julienschmidt/httprouter"
 )

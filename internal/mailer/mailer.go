@@ -6,7 +6,7 @@ import (
 	"html/template"
 	"time"
 
-	"github.com/go-mail/mail/v2"
+	"github.com/go-mail/mail"
 )
 
 //go:embed "templates"

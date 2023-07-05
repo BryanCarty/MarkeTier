@@ -8,7 +8,7 @@ import (
 	"encoding/base32"
 	"time"
 
-	"greenlight.alexedwards.net/internal/validator"
+	"marketier/internal/validator"
 )
 
 const (

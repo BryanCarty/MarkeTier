@@ -57,7 +57,7 @@ func (l *Logger) PrintFatal(err error, properties map[string]string) {
 	os.Exit(1)
 }
 
-//prints as JSON to stdout
+// prints as JSON to stdout
 func (l *Logger) print(level Level, message string, properties map[string]string) (int, error) {
 	if level < l.minLevel {
 		return 0, nil
@@ -93,7 +93,7 @@ func (l *Logger) print(level Level, message string, properties map[string]string
 	return l.out.Write(append(line, '\n')) //write to os.Stdout
 }
 
-//calls our logger(JSON), and also implements io.Writer interface
+// calls our logger(JSON), and also implements io.Writer interface
 func (l *Logger) Write(message []byte) (n int, err error) { //implements interface io.Writer
 	return l.print(LevelError, string(message), nil) //call our custom loggers print.
 }
