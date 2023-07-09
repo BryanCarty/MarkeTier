@@ -29,6 +29,35 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodDelete, "v1/users/marketiers/:id", app.requirePermission([]int8{0, 4}, app.deleteBaseUserHandler))
 	router.HandlerFunc(http.MethodDelete, "v1/users/product_owners/:id", app.requirePermission([]int8{0, 4}, app.deleteBaseUserHandler))
 
+	//image uploads
+	router.HandlerFunc(http.MethodPut, "/v1/users/:id/profile_img", app.requirePermission([]int8{0, 4}, app.uploadProfileImageHandler))
+	router.HandlerFunc(http.MethodPut, "/v1/products/:id/images", app.requirePermission([]int8{0, 4}, app.uploadProductImagesHandler))
+	router.HandlerFunc(http.MethodPut, "/v1/proposals/:id/image", app.requirePermission([]int8{0, 4}, app.uploadProposalImageHandler))
+
+	//product -> get, post, patch, delete (id, name, about, stars)
+	router.HandlerFunc(http.MethodGet, "/v1/products/:id", app.showProductHandler)
+	router.HandlerFunc(http.MethodPost, "/v1/products", app.registerProductHandler)
+	router.HandlerFunc(http.MethodPut, "/v1/products/:id", app.updateProductHandler)
+	router.HandlerFunc(http.MethodDelete, "/v1/products/:id", app.deleteProductsHandler)
+
+	//proposal -> get, post, patch, delete (id, title, method, about)
+	router.HandlerFunc(http.MethodGet, "/v1/proposal/:id", app.showProposalHandler)
+	router.HandlerFunc(http.MethodPost, "/v1/proposal", app.registerProposalHandler)
+	router.HandlerFunc(http.MethodPut, "/v1/proposal/:id", app.updateProposalHandler)
+	router.HandlerFunc(http.MethodDelete, "/v1/proposal/:id", app.deleteProposalHandler)
+
+	//contact -> get, post, patch, delete (name, email, about)
+	router.HandlerFunc(http.MethodGet, "/v1/contact/:id", app.showContactHandler)
+	router.HandlerFunc(http.MethodPost, "/v1/contact", app.registerContactHandler)
+	router.HandlerFunc(http.MethodPut, "/v1/contact/:id", app.updateContactHandler)
+	router.HandlerFunc(http.MethodDelete, "/v1/contact/:id", app.deleteContactHandler)
+
+	//reviews -> get, post, put, delete
+	router.HandlerFunc(http.MethodGet, "/v1/review/:id", app.showReviewHandler)
+	router.HandlerFunc(http.MethodPost, "/v1/review", app.registerReviewHandler)
+	router.HandlerFunc(http.MethodPut, "/v1/review/:id", app.updateReviewHandler)
+	router.HandlerFunc(http.MethodDelete, "/v1/review/:id", app.deleteReviewHandler)
+
 	router.HandlerFunc(http.MethodPut, "/v1/users/activated", app.activateBaseUserHandler)
 	router.HandlerFunc(http.MethodPut, "/v1/users/password", app.updateBaseUserPasswordHandler)
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/authentication", app.createAuthenticationTokenHandler)

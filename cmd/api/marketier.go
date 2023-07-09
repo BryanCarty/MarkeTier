@@ -2,10 +2,17 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"image"
+	"image/png"
 	"marketier/internal/data"
 	"marketier/internal/validator"
 	"net/http"
+	"os"
+	"strings"
 	"time"
+
+	"github.com/nfnt/resize"
 )
 
 func (app *application) registerMarketierHandler(w http.ResponseWriter, r *http.Request) {
@@ -187,6 +194,86 @@ func (app *application) updateMarketiersHandler(w http.ResponseWriter, r *http.R
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) uploadProposalImageHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	var input ParseFormData
+	input.FileNames = []string{"proposal_image"}
+	err = app.parseMultipartForm(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	fileHeader := make([]byte, 512)
+
+	// Copy the headers into the FileHeader buffer
+	if n, err := input.Files[0].Read(fileHeader); n == 0 || err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	// set position back to start.
+	if _, err := input.Files[0].Seek(0, 0); err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	img, _, err := image.Decode(input.Files[0])
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	v := validator.New()
+
+	fileType := strings.Split(http.DetectContentType(fileHeader), "/")
+	validateProposalImage(v, fileType[1], input.Files[0].(Sizer).Size(), img.Bounds().Dx(), img.Bounds().Dy())
+
+	if !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	proposal_img_800 := resize.Resize(800, 800, img, resize.Lanczos3)
+
+	proposal_img_400 := resize.Resize(400, 400, img, resize.Lanczos3)
+
+	proposal_img_100 := resize.Resize(100, 100, img, resize.Lanczos3)
+
+	imageMap := map[string]image.Image{
+		fmt.Sprintf("../internals/images/proposal_images/proposal_img_800:%v.png", id): proposal_img_800,
+		fmt.Sprintf("../internals/images/proposal_images/proposal_img_400:%v.png", id): proposal_img_400,
+		fmt.Sprintf("../internals/images/proposal_images/proposal_img_100:%v.png", id): proposal_img_100,
+	}
+
+	// Open a file to write the image data
+	for name, img := range imageMap {
+		file, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE, 0666)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+
+		// Encode and save the image as PNG
+		err = png.Encode(file, img)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+		file.Close()
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"message": "proposal image saved successfully"}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

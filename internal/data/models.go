@@ -15,6 +15,10 @@ type Models struct {
 	MarketierUserModel MarketierAccountModel
 	ProductOwnerModel  ProductOwnerAccountModel
 	Tokens             TokenModel
+	ProductModel       ProductModel
+	ProposalModel      ProposalModel
+	ContactModel       ContactModel
+	ReviewModel        ReviewModel
 	/*Movies      MovieModel
 	Permissions PermissionModel
 
@@ -27,6 +31,10 @@ func NewModels(db *sql.DB) Models {
 		MarketierUserModel: MarketierAccountModel{DB: db},
 		ProductOwnerModel:  ProductOwnerAccountModel{DB: db},
 		Tokens:             TokenModel{DB: db},
+		ProductModel:       ProductModel{DB: db},
+		ProposalModel:      ProposalModel{DB: db},
+		ContactModel:       ContactModel{DB: db},
+		ReviewModel:        ReviewModel{DB: db},
 		/*Movies:      MovieModel{DB: db},
 		Permissions: PermissionModel{DB: db},
 		Tokens:      TokenModel{DB: db},

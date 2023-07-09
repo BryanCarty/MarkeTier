@@ -2,10 +2,17 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"image"
+	"image/png"
 	"marketier/internal/data"
 	"marketier/internal/validator"
 	"net/http"
+	"os"
+	"strings"
 	"time"
+
+	"github.com/nfnt/resize"
 )
 
 func (app *application) registerBaseUserHandler(w http.ResponseWriter, r *http.Request) {
@@ -330,6 +337,88 @@ func (app *application) deleteBaseUserHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"message": "user successfully deleted"}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) uploadProfileImageHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	var input ParseFormData
+	input.FileNames = []string{"profile_image"}
+	err = app.parseMultipartForm(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	fileHeader := make([]byte, 512)
+
+	// Copy the headers into the FileHeader buffer
+	if n, err := input.Files[0].Read(fileHeader); n == 0 || err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	// set position back to start.
+	if _, err := input.Files[0].Seek(0, 0); err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	img, _, err := image.Decode(input.Files[0])
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	v := validator.New()
+
+	fileType := strings.Split(http.DetectContentType(fileHeader), "/")
+	validateProfileImage(v, fileType[1], input.Files[0].(Sizer).Size(), img.Bounds().Dx(), img.Bounds().Dy())
+
+	if !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	profile_img_360 := resize.Resize(360, 360, img, resize.Lanczos3)
+
+	// Resize the image to 128x128
+	profile_img_180 := resize.Resize(180, 180, img, resize.Lanczos3)
+
+	// Resize the image to 40x40
+	profile_img_40 := resize.Resize(40, 40, img, resize.Lanczos3)
+
+	imageMap := map[string]image.Image{
+		fmt.Sprintf("../internals/images/profile_images/profile_img_360:%v.png", id): profile_img_360,
+		fmt.Sprintf("../internals/images/profile_images/profile_img_180:%v.png", id): profile_img_180,
+		fmt.Sprintf("../internals/images/profile_images/profile_img_40:%v.png", id):  profile_img_40,
+	}
+
+	// Open a file to write the image data
+	for name, img := range imageMap {
+		file, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE, 0666)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+
+		// Encode and save the image as PNG
+		err = png.Encode(file, img)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+		file.Close()
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"message": "profile image saved successfully"}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

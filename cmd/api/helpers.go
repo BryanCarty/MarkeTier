@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -99,6 +100,37 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst int
 	return nil
 }
 
+func (app *application) parseMultipartForm(w http.ResponseWriter, r *http.Request, dst *ParseFormData) error {
+	maxMemory := int64(8 << 20)
+	r.Body = http.MaxBytesReader(w, r.Body, maxMemory) // Max file size 3MB
+	err := r.ParseMultipartForm(maxMemory)
+	if err != nil {
+		switch {
+		case errors.Is(err, http.ErrNotMultipart):
+			return errors.New("Request is not multipart")
+		case err.Error() == "http: request body too large":
+			return errors.New("Exceeded maximum file size")
+		default:
+			return err
+		}
+	}
+	defer r.Body.Close()
+	for _, name := range dst.FileNames {
+		file, _, err := r.FormFile(name)
+		if err != nil {
+			switch {
+			case errors.Is(err, http.ErrMissingFile):
+				return errors.New("Required file is missing")
+			default:
+				return err
+			}
+		}
+		file.Close()
+		dst.Files = append(dst.Files, file)
+	}
+	return nil
+}
+
 func (app *application) readString(qs url.Values, key string, defaultValue string) string {
 	s := qs.Get(key)
 
@@ -150,4 +182,79 @@ func (app *application) background(fn func()) {
 
 		fn()
 	}()
+}
+
+type ParseFormData struct {
+	FileNames []string
+	Files     []multipart.File
+}
+
+type Sizer interface {
+	Size() int64
+}
+
+func validateProfileImage(v *validator.Validator, fileType string, size int64, width int, height int) {
+
+	if fileType != "jpeg" && fileType != "png" {
+		v.AddError("profile_image", "only png and jpeg images are supported")
+	}
+
+	maxImageSize := int64(4 << 20)
+	minImageSize := int64(100_000)
+	if size < minImageSize || size > maxImageSize {
+		v.AddError("profile_image", "must be between 100,000 bytes and 4MB")
+	}
+
+	if width < 360 || height < 360 {
+		v.AddError("profile_image", "width and height must be greater than 360 pixels")
+	}
+
+	if width != height {
+		v.AddError("profile_image", "length must equal height")
+	}
+
+}
+
+func validateProposalImage(v *validator.Validator, fileType string, size int64, width int, height int) {
+
+	if fileType != "jpeg" && fileType != "png" {
+		v.AddError("proposal_image", "only png and jpeg images are supported")
+	}
+
+	maxImageSize := int64(5 << 20)
+	minImageSize := int64(500_000)
+	if size < minImageSize || size > maxImageSize {
+		v.AddError("proposal_image", "must be between 500,000 bytes and 5MB")
+	}
+
+	if width < 800 || height < 800 {
+		v.AddError("proposal_image", "width and height must be greater than 800 pixels")
+	}
+
+	if width != height {
+		v.AddError("proposal_image", "length must equal height")
+	}
+
+}
+
+func validateProductImages(v *validator.Validator, fileTypes [3]string, sizes [3]int64, widths [3]int, heights [3]int) {
+	for index, val := range fileTypes {
+		if val != "jpeg" && val != "png" {
+			v.AddError(fmt.Sprintf("product_image_%v", index+1), "only png and jpeg images are supported")
+		}
+
+		maxImageSize := int64(5 << 20)
+		minImageSize := int64(500_000)
+		if sizes[index] < minImageSize || sizes[index] > maxImageSize {
+			v.AddError(fmt.Sprintf("product_image_%v", index+1), "must be between 500,000 bytes and 5MB")
+		}
+
+		if widths[index] < 800 || heights[index] < 800 {
+			v.AddError(fmt.Sprintf("product_image_%v", index+1), "width and height must be greater than 800 pixels")
+		}
+
+		if widths[index] != heights[index] {
+			v.AddError(fmt.Sprintf("product_image_%v", index+1), "length must equal height")
+		}
+	}
 }
